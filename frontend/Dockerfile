@@ -23,6 +23,7 @@ COPY --from=build /app/build /usr/share/nginx/html
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY certs /etc/nginx/certs
 
 # Expose port
 EXPOSE 3000

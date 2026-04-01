@@ -31,14 +31,24 @@ services:
     depends_on:
       - keycloak_db
 
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    ports:
+      - "8443:8443"
+    env_file:
+      - ./auth-service/.env
+    volumes:
+      - ./auth-service/certs:/app/certs:ro
+    depends_on:
+      - keycloak
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    environment:
-      REACT_APP_API_URL: http://localhost:8000
-      REACT_APP_KEYCLOAK_URL: http://localhost:8080
-      REACT_APP_KEYCLOAK_REALM: reports-realm
-      REACT_APP_KEYCLOAK_CLIENT_ID: reports-frontend
+    env_file:
+      - ./frontend/.env
