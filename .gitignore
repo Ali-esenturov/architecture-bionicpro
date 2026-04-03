@@ -1,2 +1,4 @@
 /postgres-keycloak-data
 .env
+/ldap/config
+/ldap/data
