@@ -2,3 +2,4 @@
 .env
 /ldap/config
 /ldap/data
+/postgres-auth-data

@@ -8,8 +8,12 @@ const ReportPage: React.FC = () => {
   const [initialized, setInitialized] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [accessTokenExpiresAt, setAccessTokenExpiresAt] = useState<number | null>(null);
+  const [consentRequired, setConsentRequired] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [consentLoading, setConsentLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -33,6 +37,28 @@ const ReportPage: React.FC = () => {
 
     loadSession();
   }, [authServiceBaseUrl]);
+
+  useEffect(() => {
+    const loadConsent = async () => {
+      if (!sessionId) return;
+      try {
+        const response = await fetch(`${authServiceBaseUrl}/profile/consent`, {
+          credentials: 'include'
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data?.error || 'Failed to load consent status');
+        }
+        const data = await response.json();
+        setConsentRequired(Boolean(data?.consentRequired));
+        setProfile(data?.profile ?? null);
+      } catch (err) {
+        setConsentError(err instanceof Error ? err.message : 'An error occurred');
+      }
+    };
+
+    loadConsent();
+  }, [authServiceBaseUrl, sessionId]);
 
   const startLogin = async () => {
     setError(null);
@@ -70,6 +96,27 @@ const ReportPage: React.FC = () => {
     }
   };
 
+  const acceptConsent = async () => {
+    try {
+      setConsentLoading(true);
+      setConsentError(null);
+      const response = await fetch(`${authServiceBaseUrl}/profile/consent`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to save consent');
+      }
+      setConsentRequired(false);
+      setProfile(data?.profile ?? null);
+    } catch (err) {
+      setConsentError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setConsentLoading(false);
+    }
+  };
+
   if (!initialized) {
     return <div>Loading...</div>;
   }
@@ -83,6 +130,33 @@ const ReportPage: React.FC = () => {
         >
           Login
         </button>
+      </div>
+    );
+  }
+
+  if (consentRequired) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+        <div className="p-8 bg-white rounded-lg shadow-md max-w-md w-full">
+          <h1 className="text-2xl font-bold mb-4">Permission Required</h1>
+          <p className="text-gray-700 mb-6">
+            We need your permission to use your Yandex profile data for the prosthetics service.
+          </p>
+          <button
+            onClick={acceptConsent}
+            disabled={consentLoading}
+            className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${
+              consentLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {consentLoading ? 'Saving...' : 'Allow'}
+          </button>
+          {consentError && (
+            <div className="mt-4 p-4 bg-red-100 text-red-700 rounded">
+              {consentError}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
