@@ -61,6 +61,20 @@
             "jsonType.label": "String",
             "client.id": "broker"
           }
+        },
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "user.model.property": "email"
+          }
         }
       ],
       "redirectUris": [
@@ -80,8 +94,26 @@
       "clientId": "reports-api",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
-      "secret": "oNwoLQdvJAvRcL89SydqCWCe5ry1jMgq", 
-      "bearerOnly": true
+      "secret": "LuCevqwRFXF9cp54fQR30BfDFIDDbFeZ", 
+      "bearerOnly": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "realm-management client roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "claim.name": "resource_access.realm-management.roles",
+            "jsonType.label": "String",
+            "client.id": "realm-management"
+          }
+        }
+      ]
     }
   ],
   "clientScopes": [

@@ -380,6 +380,20 @@ const resolveKeycloakUserId = (session) => {
   return null;
 };
 
+const resolveIdentityProvider = (session) => {
+  if (!session) return null;
+  const token = session.idToken || session.accessToken;
+  const payload = parseJwt(token);
+  if (!payload) return null;
+  return (
+    payload.identity_provider ||
+    payload.idp ||
+    payload.idp_id ||
+    payload.idp_type ||
+    null
+  );
+};
+
 const pruneExpiredPkceStates = () => {
   const cutoff = nowMs() - pkceStateTtlMs;
   for (const [state, entry] of pkceStates.entries()) {
@@ -573,7 +587,13 @@ app.get('/auth/pkce/start', (req, res) => {
 
 app.get('/auth/pkce/callback', async (req, res) => {
   try {
-    const { code, state } = req.query || {};
+    const { code, state, error, error_description } = req.query || {};
+    if (error) {
+      return res.status(400).json({
+        error: String(error),
+        details: error_description ? String(error_description) : undefined
+      });
+    }
     if (!code || !state) {
       return res.status(400).json({ error: 'code and state are required' });
     }
@@ -658,7 +678,14 @@ app.get('/reports', async (req, res) => {
       return res.status(result.error.status).json({ error: result.error.message });
     }
 
-    const response = await fetch(`${REPORTS_API_URL}/reports`, {
+    const params = new URLSearchParams();
+    if (req.query.from) params.set('from', String(req.query.from));
+    if (req.query.to) params.set('to', String(req.query.to));
+    const url = params.toString()
+      ? `${REPORTS_API_URL}/reports?${params.toString()}`
+      : `${REPORTS_API_URL}/reports`;
+
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${result.session.accessToken}`
       }
@@ -687,6 +714,11 @@ app.get('/profile/consent', async (req, res) => {
       return res.status(result.error.status).json({ error: result.error.message });
     }
 
+    const idp = resolveIdentityProvider(result.session);
+    if (idp !== YANDEX_IDP_ALIAS) {
+      return res.json({ consentRequired: false, profile: null, idp });
+    }
+
     const keycloakUserId = resolveKeycloakUserId(result.session);
     if (!keycloakUserId) {
       debugAuth('keycloak user id resolution failed', {
@@ -697,7 +729,7 @@ app.get('/profile/consent', async (req, res) => {
 
     const profile = await getStoredProfile(keycloakUserId);
     const consentRequired = !profile?.consent_at;
-    res.json({ consentRequired, profile });
+    res.json({ consentRequired, profile, idp });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message, details: err.details });
   }
@@ -708,6 +740,11 @@ app.post('/profile/consent', async (req, res) => {
     const result = await ensureValidSession(req, res);
     if (result.error) {
       return res.status(result.error.status).json({ error: result.error.message });
+    }
+
+    const idp = resolveIdentityProvider(result.session);
+    if (idp !== YANDEX_IDP_ALIAS) {
+      return res.status(400).json({ error: 'consent not required for non-yandex users' });
     }
 
     const keycloakUserId = resolveKeycloakUserId(result.session);
@@ -735,6 +772,11 @@ app.get('/profile/yandex', async (req, res) => {
     const result = await ensureValidSession(req, res);
     if (result.error) {
       return res.status(result.error.status).json({ error: result.error.message });
+    }
+
+    const idp = resolveIdentityProvider(result.session);
+    if (idp !== YANDEX_IDP_ALIAS) {
+      return res.status(400).json({ error: 'profile not available for non-yandex users' });
     }
 
     const keycloakUserId = resolveKeycloakUserId(result.session);

@@ -14,6 +14,14 @@ const ReportPage: React.FC = () => {
   const [consentLoading, setConsentLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
+  const [reportInfo, setReportInfo] = useState<{
+    count: number;
+    from: string;
+    to: string;
+    maxProcessed?: string;
+  } | null>(null);
+  const [fromInput, setFromInput] = useState<string>('');
+  const [toInput, setToInput] = useState<string>('');
 
   useEffect(() => {
     const loadSession = async () => {
@@ -37,6 +45,17 @@ const ReportPage: React.FC = () => {
 
     loadSession();
   }, [authServiceBaseUrl]);
+
+  useEffect(() => {
+    const now = new Date();
+    const from = new Date();
+    from.setDate(now.getDate() - 7);
+
+    const toValue = now.toISOString().slice(0, 16);
+    const fromValue = from.toISOString().slice(0, 16);
+    setToInput(toValue);
+    setFromInput(fromValue);
+  }, []);
 
   useEffect(() => {
     const loadConsent = async () => {
@@ -83,12 +102,43 @@ const ReportPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      setReportInfo(null);
 
-      const response = await fetch(`${authServiceBaseUrl}/reports`, {
+      if (!fromInput || !toInput) {
+        throw new Error('Please select a valid period');
+      }
+
+      const from = new Date(fromInput);
+      const to = new Date(toInput);
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+        throw new Error('Invalid date format');
+      }
+      if (from > to) {
+        throw new Error('From must be before To');
+      }
+
+      const params = new URLSearchParams({
+        from: from.toISOString(),
+        to: to.toISOString()
+      });
+
+      const response = await fetch(`${authServiceBaseUrl}/reports?${params.toString()}`, {
         credentials: 'include'
       });
 
-      
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await response.json() : null;
+      if (!response.ok) {
+        const message = data?.error || 'Failed to generate report';
+        const extra = data?.maxProcessed ? ` (max: ${data.maxProcessed})` : '';
+        throw new Error(`${message}${extra}`);
+      }
+      setReportInfo({
+        count: data?.count ?? 0,
+        from: data?.from,
+        to: data?.to,
+        maxProcessed: data?.maxProcessed
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -171,6 +221,27 @@ const ReportPage: React.FC = () => {
             Session expires at: {new Date(accessTokenExpiresAt).toLocaleString()}
           </div>
         )}
+
+        <div className="mb-4 grid grid-cols-1 gap-3">
+          <label className="text-sm text-gray-700">
+            From
+            <input
+              type="datetime-local"
+              value={fromInput}
+              onChange={(e) => setFromInput(e.target.value)}
+              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="text-sm text-gray-700">
+            To
+            <input
+              type="datetime-local"
+              value={toInput}
+              onChange={(e) => setToInput(e.target.value)}
+              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
         
         <button
           onClick={downloadReport}
@@ -185,6 +256,17 @@ const ReportPage: React.FC = () => {
         {error && (
           <div className="mt-4 p-4 bg-red-100 text-red-700 rounded">
             {error}
+          </div>
+        )}
+
+        {reportInfo && (
+          <div className="mt-4 p-4 bg-green-100 text-green-800 rounded text-sm">
+            Report rows: {reportInfo.count}
+            <div>From: {reportInfo.from}</div>
+            <div>To: {reportInfo.to}</div>
+            {reportInfo.maxProcessed && (
+              <div>Max processed: {reportInfo.maxProcessed}</div>
+            )}
           </div>
         )}
       </div>

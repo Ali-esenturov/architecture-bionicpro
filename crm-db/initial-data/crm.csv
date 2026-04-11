@@ -1,5 +1,5 @@
 id,name,email,age,gender,country,address,phone
-1,Alexis Moore,alexis.moore@example.com,55,Female,Falkland Islands (Malvinas),"0870 Andrew Passage Suite 901, Lisaland, AR 82318",400-379-7158x0459
+1,Alexis Moore,alex@example.com,55,Female,Falkland Islands (Malvinas),"0870 Andrew Passage Suite 901, Lisaland, AR 82318",400-379-7158x0459
 2,Paige Gonzales,paige.gonzales@example.com,45,Male,Georgia,"89481 Nicole Inlet, New Robertview, PR 86300",717-701-0885
 3,Theresa Kelly,theresa.kelly@example.com,70,Female,France,"126 Jackson Meadows, Cervantesberg, KY 24420",(783)201-0954x259
 4,Yolanda Lopez DDS,yolanda.lopez.dds@example.com,48,Male,Bhutan,"5512 Kenneth Union, North Jasonhaven, AS 38753",655-752-4836
@@ -18,7 +18,7 @@ id,name,email,age,gender,country,address,phone
 17,Barbara Odonnell,barbara.odonnell@example.com,39,Male,Tuvalu,"USNS Joseph, FPO AE 15906",9154736797
 18,Michael Russell,michael.russell@example.com,63,Female,Bahamas,"497 Lara Extension Apt. 100, Lake Cynthia, WI 05137",746-405-0326x815
 19,Dr. Stephen Hart,dr..stephen.hart@example.com,79,Female,Liberia,"6372 Meghan Tunnel, Port Danielfurt, FL 56675",001-225-477-8634x6020
-20,John Diaz,john.diaz@example.com,74,Female,Montenegro,"27351 Haley Ferry, Garzahaven, GA 82262",612.987.9504
+20,John Diaz,john@example.com,74,Female,Montenegro,"27351 Haley Ferry, Garzahaven, GA 82262",612.987.9504
 21,Justin Edwards,justin.edwards@example.com,64,Female,South Africa,"USNV Steele, FPO AA 48789",414.382.8424x1557
 22,Patricia Hood,patricia.hood@example.com,48,Male,Colombia,"4610 Good Stravenue Suite 669, Velasquezport, MS 11140",+1-624-908-2083
 23,Jessica Rios,jessica.rios@example.com,44,Female,Israel,"1624 Jason Courts, Lake Juanport, FM 94784",610-803-0774

@@ -93,6 +93,21 @@ services:
     env_file:
       - ./frontend/.env
 
+  reports-api:
+    build:
+      context: ./reports-api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./reports-api/.env
+    depends_on:
+      olap_db:
+        condition: service_healthy
+    networks:
+      - dag_sample
+      - default
+
   auth_db:
     image: postgres:14
     environment:
@@ -260,3 +275,4 @@ services:
 
 networks:
   dag_sample:
+  default:
