@@ -1,13 +1,11 @@
-version: '3.8'
-
 x-airflow-common: &airflow-common
   build:
     context: ./airflow
     dockerfile: Dockerfile
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor #локальный запуск
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
@@ -20,10 +18,9 @@ x-airflow-common: &airflow-common
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/dags/sql:/opt/airflow/dags/sql
     - ./airflow/requirements.txt:/opt/airflow/requirements.txt
-    - ./airflow/data:/opt/airflow/sample_files
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
-    postgres:
+    postgres-airflow:
       condition: service_healthy
   networks:
     - dag_sample
@@ -39,6 +36,11 @@ services:
       - ./postgres-keycloak-data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+    healthcheck: # Highly recommended so other services wait for DB to be ready
+      test: ["CMD-SHELL", "pg_isready -U keycloak_user -d keycloak_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   keycloak:
     build:
@@ -63,7 +65,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - keycloak_db
+      keycloak_db:
+        condition: service_healthy
 
   auth-service:
     build:
@@ -76,8 +79,10 @@ services:
     volumes:
       - ./auth-service/certs:/app/certs:ro
     depends_on:
-      - keycloak
-      - auth_db
+      keycloak:
+        condition: service_started
+      auth_db:
+        condition: service_healthy
 
   frontend:
     build:
@@ -98,6 +103,11 @@ services:
       - ./postgres-auth-data:/var/lib/postgresql/data
     ports:
       - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   ldap:
     build:
@@ -115,13 +125,52 @@ services:
     ports:
       - "389:389"
 
+  crm_db:
+    image: postgres:14
+    restart: always
+    environment:
+      POSTGRES_DB: crm_db
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: crm_password
+    volumes:
+      - ./crm-db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgres-crm-data:/var/lib/postgresql/data
+      - ./crm-db/initial-data:/initial-data:ro 
+    ports:
+      - "5444:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_user -d crm_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dag_sample
+
+  olap_db:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"
+      - "9431:9000"
+    volumes:
+      - ./clickhouse-data:/var/lib/clickhouse
+      - ./olap-db/init:/docker-entrypoint-initdb.d
+      - ./olap-db/imports:/var/lib/clickhouse/user_files
+      - ./olap-db/users.xml:/etc/clickhouse-server/users.d/users.xml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dag_sample
+
   airflow-webserver:
     <<: *airflow-common
-
     ports:
       - "8081:8080"
     depends_on:
-      postgres: # TO_DO
+      olap_db:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
@@ -140,8 +189,6 @@ services:
       - dag_sample
     command: scheduler
     depends_on:
-      postgres: # TO_DO
-        condition: service_healthy
       airflow-webserver:
         condition: service_healthy
     healthcheck:
@@ -153,10 +200,8 @@ services:
   airflow-triggerer:
     <<: *airflow-common
     depends_on:
-      postgres: # TO_DO
+      airflow-webserver:
         condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
     networks:
       - dag_sample
     command: bash -c "airflow triggerer"
@@ -173,7 +218,7 @@ services:
   airflow-cli:
     <<: *airflow-common
     depends_on:
-      postgres: # TO_DO
+      airflow-webserver:
         condition: service_healthy
     networks:
       - dag_sample
@@ -187,10 +232,29 @@ services:
   airflow-init:
     <<: *airflow-common
     depends_on:
-      postgres: # TO_DO
+      postgres-airflow:
         condition: service_healthy
     command: >
       bash -c "airflow db init && airflow users create \ --username admin \ --firstname admin \ --lastname admin \ --role Admin \ --email admin@sample.ru \ --password admin"
+    networks:
+      - dag_sample
+
+  postgres-airflow:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - -U
+        - airflow
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
     networks:
       - dag_sample
 
