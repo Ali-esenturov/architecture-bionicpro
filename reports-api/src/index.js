@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
 import { createClient } from '@clickhouse/client';
+import { S3Client, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 dotenv.config();
 
@@ -13,6 +14,12 @@ const {
   KEYCLOAK_CLIENT_SECRET = '',
   KEYCLOAK_ADMIN_CLIENT_ID = 'reports-api',
   KEYCLOAK_ADMIN_CLIENT_SECRET = '',
+  S3_ENDPOINT = 'http://minio:9000',
+  S3_REGION = 'us-east-1',
+  S3_BUCKET = 'reports',
+  S3_ACCESS_KEY = 'minio_user',
+  S3_SECRET_KEY = 'minio_password',
+  CDN_BASE_URL = 'http://localhost:8082',
   CLICKHOUSE_HOST = 'http://olap_db:8123',
   CLICKHOUSE_DB = 'default',
   CLICKHOUSE_USER = 'default',
@@ -28,6 +35,16 @@ const clickhouse = createClient({
   username: CLICKHOUSE_USER,
   password: CLICKHOUSE_PASSWORD,
   database: CLICKHOUSE_DB
+});
+
+const s3 = new S3Client({
+  region: S3_REGION,
+  endpoint: S3_ENDPOINT,
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: S3_ACCESS_KEY,
+    secretAccessKey: S3_SECRET_KEY
+  }
 });
 
 const introspectEndpoint = `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token/introspect`;
@@ -174,6 +191,57 @@ const parseDate = (value) => {
   return date;
 };
 
+const toKeyTimestamp = (value) => {
+  const iso = value.toISOString();
+  return iso.replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+};
+
+const slugifyEmail = (email) =>
+  email
+    .trim()
+    .toLowerCase()
+    .replace(/@/g, '_at_')
+    .replace(/[^a-z0-9._-]/g, '_');
+
+const buildReportKey = ({ email, from, to, maxProcessed }) => {
+  const emailSlug = slugifyEmail(email);
+  const fromKey = toKeyTimestamp(from);
+  const toKey = toKeyTimestamp(to);
+  const version = maxProcessed ? toKeyTimestamp(maxProcessed) : 'v0';
+  return `${emailSlug}/${fromKey}_${toKey}/${version}.json`;
+};
+
+const buildCdnUrl = (key) => `${CDN_BASE_URL}/${S3_BUCKET}/${key}`;
+
+const headReportObject = async (key) => {
+  try {
+    await s3.send(
+      new HeadObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key
+      })
+    );
+    return true;
+  } catch (err) {
+    if (err?.$metadata?.httpStatusCode === 404 || err?.name === 'NotFound') {
+      return false;
+    }
+    throw err;
+  }
+};
+
+const putReportObject = async ({ key, body }) => {
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: 'application/json',
+      CacheControl: 'public, max-age=3600, s-maxage=3600'
+    })
+  );
+};
+
 const getMaxProcessedTime = async () => {
   const result = await clickhouse.query({
     query: 'SELECT max(signal_time) AS max_time FROM reports_customer_emg_mart',
@@ -268,14 +336,43 @@ app.get('/reports', async (req, res) => {
       });
     }
 
+    const key = buildReportKey({ email, from, to, maxProcessed });
+    const cdnUrl = buildCdnUrl(key);
+
+    const exists = await headReportObject(key);
+    if (exists) {
+      return res.json({
+        email,
+        from: from.toISOString(),
+        to: to.toISOString(),
+        maxProcessed: maxProcessed.toISOString(),
+        cached: true,
+        cdnUrl,
+        s3Key: key
+      });
+    }
+
     const rows = await getReports({ email, from, to });
-    res.json({
+    const reportPayload = {
       email,
       from: from.toISOString(),
       to: to.toISOString(),
       maxProcessed: maxProcessed.toISOString(),
       count: rows.length,
       rows
+    };
+    await putReportObject({
+      key,
+      body: JSON.stringify(reportPayload, null, 2)
+    });
+    res.json({
+      email,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      maxProcessed: maxProcessed.toISOString(),
+      cached: false,
+      cdnUrl,
+      s3Key: key
     });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message, details: err.details });

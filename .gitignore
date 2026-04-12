@@ -1,8 +1,4 @@
-/postgres-keycloak-data
 .env
 /ldap/config
 /ldap/data
-/postgres-auth-data
 __pycache__
-/clickhouse-data
-/postgres-crm-data

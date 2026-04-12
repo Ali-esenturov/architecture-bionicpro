@@ -15,10 +15,11 @@ const ReportPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [reportInfo, setReportInfo] = useState<{
-    count: number;
     from: string;
     to: string;
     maxProcessed?: string;
+    cdnUrl?: string;
+    cached?: boolean;
   } | null>(null);
   const [fromInput, setFromInput] = useState<string>('');
   const [toInput, setToInput] = useState<string>('');
@@ -134,10 +135,11 @@ const ReportPage: React.FC = () => {
         throw new Error(`${message}${extra}`);
       }
       setReportInfo({
-        count: data?.count ?? 0,
         from: data?.from,
         to: data?.to,
-        maxProcessed: data?.maxProcessed
+        maxProcessed: data?.maxProcessed,
+        cdnUrl: data?.cdnUrl,
+        cached: data?.cached
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -261,11 +263,28 @@ const ReportPage: React.FC = () => {
 
         {reportInfo && (
           <div className="mt-4 p-4 bg-green-100 text-green-800 rounded text-sm">
-            Report rows: {reportInfo.count}
             <div>From: {reportInfo.from}</div>
             <div>To: {reportInfo.to}</div>
             {reportInfo.maxProcessed && (
               <div>Max processed: {reportInfo.maxProcessed}</div>
+            )}
+            {reportInfo.cdnUrl && (
+              <div>
+                CDN link:{' '}
+                <a
+                  href={reportInfo.cdnUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 underline"
+                >
+                  Open report
+                </a>
+                {reportInfo.cached !== undefined && (
+                  <span className="ml-2 text-xs text-gray-600">
+                    {reportInfo.cached ? '(cached)' : '(generated)'}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}

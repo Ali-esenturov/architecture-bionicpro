@@ -12,6 +12,8 @@ x-airflow-common: &airflow-common
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     AIRFLOW__WEBSERVER__SECRET_KEY: 'your_airflow_webserver_sec_key'
+    AIRFLOW_CONN_CRM_DB: 'postgresql://crm_user:crm_password@crm_db:5432/crm_db'
+    AIRFLOW_CONN_OLAP_DB: 'clickhouse://default:@olap_db:9000/default'
     _PIP_ADDITIONAL_REQUIREMENTS: ''
     AIRFLOW_INPUT_DIR: '/opt/airflow/dag-inputs'
   volumes:
@@ -33,7 +35,7 @@ services:
       POSTGRES_USER: keycloak_user
       POSTGRES_PASSWORD: keycloak_password
     volumes:
-      - ./postgres-keycloak-data:/var/lib/postgresql/data
+      - keycloak_db_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck: # Highly recommended so other services wait for DB to be ready
@@ -67,6 +69,15 @@ services:
     depends_on:
       keycloak_db:
         condition: service_healthy
+
+  keycloak-init:
+    image: quay.io/keycloak/keycloak:25.0.0
+    depends_on:
+      keycloak:
+        condition: service_started
+    entrypoint: ["/bin/sh", "/opt/keycloak/init/init.sh"]
+    volumes:
+      - ./keycloak/init.sh:/opt/keycloak/init/init.sh:ro
 
   auth-service:
     build:
@@ -115,11 +126,11 @@ services:
       POSTGRES_USER: auth_user
       POSTGRES_PASSWORD: auth_password
     volumes:
-      - ./postgres-auth-data:/var/lib/postgresql/data
+      - auth_db_data:/var/lib/postgresql/data
     ports:
       - "5434:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_password"]
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -149,7 +160,7 @@ services:
       POSTGRES_PASSWORD: crm_password
     volumes:
       - ./crm-db/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./postgres-crm-data:/var/lib/postgresql/data
+      - crm_db_data:/var/lib/postgresql/data
       - ./crm-db/initial-data:/initial-data:ro 
     ports:
       - "5444:5432"
@@ -167,7 +178,7 @@ services:
       - "8123:8123"
       - "9431:9000"
     volumes:
-      - ./clickhouse-data:/var/lib/clickhouse
+      - clickhouse_data:/var/lib/clickhouse
       - ./olap-db/init:/docker-entrypoint-initdb.d
       - ./olap-db/imports:/var/lib/clickhouse/user_files
       - ./olap-db/users.xml:/etc/clickhouse-server/users.d/users.xml
@@ -273,6 +284,58 @@ services:
     networks:
       - dag_sample
 
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: minio_user
+      MINIO_ROOT_PASSWORD: minio_password
+    command: server --console-address ":9001" /data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "until mc alias set local http://minio:9000 minio_user minio_password; do sleep 2; done;
+      mc alias set local http://minio:9000 minio_user minio_password &&
+      mc mb -p local/reports || true &&
+      mc anonymous set download local/reports || true"
+    networks:
+      - default
+
+  cdn:
+    image: nginx:1.27-alpine
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./cdn/nginx.conf:/etc/nginx/nginx.conf:ro
+      - cdn_cache:/var/cache/nginx
+    depends_on:
+      - minio
+    networks:
+      - default
+
 networks:
   dag_sample:
   default:
+
+volumes:
+  cdn_cache:
+  keycloak_db_data:
+  auth_db_data:
+  crm_db_data:
+  clickhouse_data:
+  minio_data:

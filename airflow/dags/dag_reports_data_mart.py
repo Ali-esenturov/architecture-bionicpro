@@ -49,7 +49,7 @@ INNER JOIN emg_sensor_data e
 """
 
 def refresh_reports_mart():
-  ch_hook = ClickHouseHook(clickhouse_conn_id='write_to_clickhouse')
+  ch_hook = ClickHouseHook(clickhouse_conn_id='olap_db')
   ch_hook.execute(CREATE_TABLE_SQL)
   ch_hook.execute(TRUNCATE_SQL)
   ch_hook.execute(INSERT_SQL)

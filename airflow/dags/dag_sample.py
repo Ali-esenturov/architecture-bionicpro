@@ -5,8 +5,8 @@ from airflow_clickhouse_plugin.hooks.clickhouse import ClickHouseHook
 from datetime import datetime, timedelta
 
 def transfer_data():
-    pg_hook = PostgresHook(postgres_conn_id='read_from_postgres')
-    ch_hook = ClickHouseHook(clickhouse_conn_id='write_to_clickhouse')
+    pg_hook = PostgresHook(postgres_conn_id='crm_db')
+    ch_hook = ClickHouseHook(clickhouse_conn_id='olap_db')
 
     records = pg_hook.get_records("""
         SELECT id, name, email, age, gender, country, address, phone

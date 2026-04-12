@@ -96,6 +96,7 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "LuCevqwRFXF9cp54fQR30BfDFIDDbFeZ", 
       "bearerOnly": false,
+      "fullScopeAllowed": true,
       "serviceAccountsEnabled": true,
       "protocolMappers": [
         {
