@@ -1,0 +1,18 @@
+{
+  "name": "crm-customers-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "crm_db",
+    "database.port": "5432",
+    "database.user": "crm_user",
+    "database.password": "crm_password",
+    "database.dbname": "crm_db",
+    "topic.prefix": "crm",
+    "plugin.name": "pgoutput",
+    "slot.name": "crm_customers_slot",
+    "publication.autocreate.mode": "filtered",
+    "table.include.list": "public.customers",
+    "snapshot.mode": "initial",
+    "tombstones.on.delete": "false"
+  }
+}
