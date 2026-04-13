@@ -193,6 +193,7 @@ services:
       start_period: 10s
     networks:
       - dag_sample
+      - default
 
   airflow-webserver:
     <<: *airflow-common
@@ -300,17 +301,13 @@ services:
     command: server --console-address ":9001" /data
     networks:
       - default
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/minio/health/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
 
   minio-init:
     image: minio/mc
+    restart: on-failure
     depends_on:
       minio:
-        condition: service_healthy
+        condition: service_started
     entrypoint: >
       /bin/sh -c "until mc alias set local http://minio:9000 minio_user minio_password; do sleep 2; done;
       mc alias set local http://minio:9000 minio_user minio_password &&

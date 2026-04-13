@@ -13,6 +13,7 @@
     "publication.autocreate.mode": "filtered",
     "table.include.list": "public.customers",
     "snapshot.mode": "initial",
-    "tombstones.on.delete": "false"
+    "tombstones.on.delete": "false",
+    "decimal.handling.mode": "string"
   }
 }

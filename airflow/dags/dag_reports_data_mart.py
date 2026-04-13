@@ -43,7 +43,9 @@ SELECT
   e.signal_duration,
   e.signal_amplitude,
   e.signal_time
-FROM customers c
+FROM (
+  SELECT * FROM crm_customers_mart FINAL
+) c
 INNER JOIN emg_sensor_data e
     ON c.id = e.user_id
 """
