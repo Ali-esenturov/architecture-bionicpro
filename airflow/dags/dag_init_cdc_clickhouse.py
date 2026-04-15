@@ -93,22 +93,6 @@ FROM crm_customers_staging
 WHERE is_deleted = 0
 """
 
-CUSTOMERS_MART_BACKFILL_SQL = """
-INSERT INTO crm_customers_mart
-SELECT
-  id,
-  argMax(name, ts_ms) AS name,
-  argMax(email, ts_ms) AS email,
-  argMax(age, ts_ms) AS age,
-  argMax(gender, ts_ms) AS gender,
-  argMax(country, ts_ms) AS country,
-  argMax(address, ts_ms) AS address,
-  argMax(phone, ts_ms) AS phone,
-  max(ts_ms) AS updated_at
-FROM crm_customers_staging
-GROUP BY id
-"""
-
 def create_kafka_table():
     ch_hook = ClickHouseHook(clickhouse_conn_id='olap_db')
     ch_hook.execute(KAFKA_TABLE_SQL)
@@ -131,10 +115,6 @@ def create_customers_mart():
 def create_customers_mart_view():
     ch_hook = ClickHouseHook(clickhouse_conn_id='olap_db')
     ch_hook.execute(CUSTOMERS_MART_VIEW_SQL)
-
-def backfill_customers_mart():
-    ch_hook = ClickHouseHook(clickhouse_conn_id='olap_db')
-    ch_hook.execute(CUSTOMERS_MART_BACKFILL_SQL)
 
 
 with DAG(
@@ -173,10 +153,5 @@ with DAG(
         python_callable=create_customers_mart_view
     )
 
-    backfill_customers_mart_task = PythonOperator(
-        task_id='backfill_customers_mart',
-        python_callable=backfill_customers_mart
-    )
-
     create_kafka_table_task >> create_staging_table_task >> create_materialized_view_task
-    create_materialized_view_task >> create_customers_mart_task >> create_customers_mart_view_task >> backfill_customers_mart_task
+    create_materialized_view_task >> create_customers_mart_task >> create_customers_mart_view_task

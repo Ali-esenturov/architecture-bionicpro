@@ -12,8 +12,6 @@ const {
   KEYCLOAK_REALM = 'reports-realm',
   KEYCLOAK_CLIENT_ID = 'reports-api',
   KEYCLOAK_CLIENT_SECRET = '',
-  KEYCLOAK_ADMIN_CLIENT_ID = 'reports-api',
-  KEYCLOAK_ADMIN_CLIENT_SECRET = '',
   S3_ENDPOINT = 'http://minio:9000',
   S3_REGION = 'us-east-1',
   S3_BUCKET = 'reports',
@@ -93,8 +91,8 @@ const resolveEmailFromToken = (tokenInfo, token) => {
 const getAdminAccessToken = async () => {
   const body = new URLSearchParams({
     grant_type: 'client_credentials',
-    client_id: KEYCLOAK_ADMIN_CLIENT_ID,
-    client_secret: KEYCLOAK_ADMIN_CLIENT_SECRET
+    client_id: KEYCLOAK_CLIENT_ID,
+    client_secret: KEYCLOAK_CLIENT_SECRET
   });
   const response = await fetch(adminTokenEndpoint, {
     method: 'POST',
@@ -128,7 +126,7 @@ const getAdminAccessToken = async () => {
 };
 
 const getUserEmailByUsername = async (username) => {
-  if (!KEYCLOAK_ADMIN_CLIENT_SECRET) return null;
+  if (!KEYCLOAK_CLIENT_SECRET) return null;
   const token = await getAdminAccessToken();
   if (!token) return null;
   const url = `${usersEndpoint}?username=${encodeURIComponent(username)}`;
